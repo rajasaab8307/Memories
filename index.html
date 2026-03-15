@@ -245,6 +245,29 @@ header{position:sticky;top:0;z-index:100;background:var(--header-bg);backdrop-fi
 .mp-vol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--petal);cursor:pointer}
 .mp-vol::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--petal);cursor:pointer;border:none}
 
+/* ══ PDF PREVIEW MODAL ══ */
+#pdfmod{display:none;position:fixed;inset:0;z-index:1000;background:rgba(10,3,5,.97);backdrop-filter:blur(16px);align-items:center;justify-content:center;padding:12px;flex-direction:column}
+#pdfmod.on{display:flex}
+.pdf-card{background:var(--modal-bg);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:860px;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.7);animation:riseIn .3s cubic-bezier(.16,1,.3,1) both}
+.pdf-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;gap:10px}
+.pdf-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1rem;color:var(--blush);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-hdr-r{display:flex;gap:8px;flex-shrink:0}
+.pdf-btn-sm{background:transparent;border:1px solid var(--border);color:var(--muted);width:34px;height:34px;border-radius:50%;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.3s}
+.pdf-btn-sm:hover{border-color:var(--petal);color:var(--blush)}
+.pdf-body{flex:1;position:relative;overflow:hidden;background:#fff;min-height:0}
+.pdf-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--rose2);color:var(--muted);font-size:.82rem;letter-spacing:.06em;z-index:2;transition:opacity .4s}
+.pdf-loading.hidden{opacity:0;pointer-events:none}
+.pdf-spinner{width:30px;height:30px;border:2px solid rgba(196,82,110,.2);border-top-color:var(--petal);border-radius:50%;animation:sp .9s linear infinite}
+.pdf-iframe{width:100%;height:100%;border:none;display:block}
+.pdf-footer{display:flex;justify-content:center;gap:10px;padding:12px 18px;border-top:1px solid var(--border);flex-shrink:0}
+.pdf-foot-btn{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:20px;padding:8px 18px;font-family:'Jost',sans-serif;font-size:.75rem;letter-spacing:.06em;cursor:pointer;transition:.3s}
+.pdf-foot-btn:hover{border-color:var(--petal);color:var(--blush)}
+
+/* ── PDF tile hover ── */
+.pdf-tile{cursor:pointer}
+.pdf-tile::after{content:'📄';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:2.4rem;transition:transform .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none}
+.pc:hover .pdf-tile::after{transform:translate(-50%,-50%) scale(1)}
+
 /* ── LIGHTBOX ── */
 #lb{display:none;position:fixed;inset:0;z-index:1000;background:rgba(10,3,5,.95);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:20px}
 #lb.on{display:flex}
@@ -283,10 +306,60 @@ header{position:sticky;top:0;z-index:100;background:var(--header-bg);backdrop-fi
 #toast.show{transform:translateY(0);opacity:1}
 #toast.s{border-color:rgba(196,82,110,.5)}
 #toast.e{border-color:rgba(224,90,90,.5)}
-@media(min-width:600px){#toast{left:auto;right:28px;bottom:28px;max-width:300px;text-align:left}}
-@media(min-width:600px){.main{padding:40px 32px}}
+/* ── RESPONSIVE / MOBILE ── */
+@media(min-width:600px){
+  #toast{left:auto;right:28px;bottom:28px;max-width:300px;text-align:left}
+  .main{padding:40px 32px}
+  .ctrl-left{width:auto}.filter-tabs{width:auto}.stitle{width:auto}
+  .lcard{padding:52px 44px}
+}
 @media(min-width:900px){.main{padding:48px 40px}}
-@media(min-width:600px){.ctrl-left{width:auto}.filter-tabs{width:auto}.stitle{width:auto}}
+
+/* ── PHONE (<480px) ── */
+@media(max-width:480px){
+  /* Login */
+  .lcard{padding:36px 22px;border-radius:20px}
+  .llogo{font-size:2rem}
+  .otp-inputs input{width:38px;height:46px;font-size:1.2rem}
+  /* Header */
+  header{height:56px;padding:0 14px}
+  .logo{font-size:1.25rem}
+  .btn-ghost{padding:6px 10px;font-size:.7rem}
+  /* Main */
+  .main{padding:18px 14px}
+  .dz{padding:32px 16px}
+  .dz-icon{font-size:2rem}
+  .dz h3{font-size:1.1rem}
+  /* Grid — 2 columns on phone */
+  #grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  #grid.list{grid-template-columns:1fr;gap:8px}
+  .stitle{font-size:1.3rem}
+  /* Cards */
+  .pi{padding:8px 10px 2px}
+  .pn{font-size:.82rem}
+  .pm{font-size:.66rem}
+  .pa{padding:6px 8px 10px;gap:5px}
+  .ab{padding:6px 7px;font-size:.67rem;border-radius:16px}
+  /* Player */
+  .mp-card{border-radius:18px}
+  .mp-hdr{padding:14px 16px 0}
+  .mp-audio-ui{padding:18px 16px 8px}
+  .mp-vinyl{width:90px;height:90px}
+  .mp-ctrl{padding:12px 16px 18px;gap:10px}
+  .mp-btn{width:36px;height:36px;font-size:.8rem}
+  .mp-btn.play{width:44px;height:44px;font-size:1rem}
+  /* PDF */
+  .pdf-card{border-radius:16px;height:92vh}
+  .pdf-hdr{padding:12px 14px}
+  .pdf-footer{padding:10px 14px;gap:8px}
+  .pdf-foot-btn{padding:7px 14px;font-size:.72rem}
+  /* Settings */
+  .sc{padding:28px 20px;border-radius:16px}
+  /* Toast at very bottom */
+  #toast{bottom:16px;left:12px;right:12px}
+  /* Filter tabs smaller */
+  .ftab{padding:5px 9px;font-size:.68rem}
+}
 </style>
 </head>
 <body>
@@ -439,6 +512,30 @@ for(let i=0;i<14;i++){const p=document.createElement('div');p.className='petal';
       </div>
     </div>
     <audio id="mp-audio" preload="metadata" style="display:none"></audio>
+  </div>
+</div>
+
+<!-- ══ PDF PREVIEW MODAL ══ -->
+<div id="pdfmod" onclick="if(event.target===this)pdfClose()">
+  <div class="pdf-card" onclick="event.stopPropagation()">
+    <div class="pdf-hdr">
+      <div class="pdf-title" id="pdf-title">Document</div>
+      <div class="pdf-hdr-r">
+        <button class="pdf-btn-sm" onclick="pdfDownload()" title="Download">↓</button>
+        <button class="pdf-btn-sm" onclick="pdfClose()" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="pdf-body">
+      <div class="pdf-loading" id="pdf-loading">
+        <div class="pdf-spinner"></div>
+        <span>Loading document…</span>
+      </div>
+      <iframe id="pdf-iframe" class="pdf-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" allowfullscreen></iframe>
+    </div>
+    <div class="pdf-footer">
+      <button class="pdf-foot-btn" onclick="pdfDownload()">↓ Download</button>
+      <button class="pdf-foot-btn" onclick="window.open(document.getElementById('pdf-iframe').src,'_blank')">↗ Open tab</button>
+    </div>
   </div>
 </div>
 
@@ -730,8 +827,16 @@ async function upload(files){
   for(let i=0;i<valid.length;i++){
     const f=valid[i];pt.textContent=`Saving ${i+1} of ${valid.length}: ${f.name}`;
     const pct=Math.round(i/valid.length*100);pf.style.width=pct+'%';pp.textContent=pct+'%';
-    try{await dbxUpload(fold()+'/'+Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_'),f);}
-    catch(e){failed++;toast('Failed: '+f.name,'e');}
+    try{
+      // Build a safe, short filename: keep extension + truncate middle to fit Dropbox's 255-char limit
+      const ext = f.name.includes('.') ? '.'+f.name.split('.').pop() : '';
+      const base = f.name.slice(0, f.name.length - ext.length).replace(/[^a-zA-Z0-9._-]/g,'_');
+      const ts = Date.now()+'_';
+      // Max base length = 200 chars so full path stays well under 255
+      const safeName = ts + base.slice(0,200) + ext;
+      await dbxUpload(fold()+'/'+safeName, f);
+    }
+    catch(e){failed++;toast('Failed: '+f.name.slice(0,40)+(f.name.length>40?'…':'')+' — '+e.message,'e');}
   }
   pf.style.width='100%';pp.textContent='100%';
   setTimeout(()=>{pw.style.display='none';pf.style.width='0%';},800);
@@ -757,31 +862,37 @@ async function loadFiles(){
 }
 
 /* ── CARD ── */
+function isPDF(name){return /\.pdf$/i.test(name);}
+
 function buildCard(e){
   const name=e.name||'Untitled',size=fmt(e.size||0),path=e.path_lower;
   const date=e.client_modified?new Date(e.client_modified).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'';
-  const cat=getFileCat(name),isImg=cat==='image',playable=isPlayable(name);
+  const cat=getFileCat(name),isImg=cat==='image',playable=isPlayable(name),isPdf=isPDF(name);
   const emoji=getFileEmoji(name),ext=(name.split('.').pop()||'').toUpperCase().slice(0,6);
-  const safeName=name.replace(/'/g,"\\'");
+  const sp=path.replace(/'/g,"\\'");
+  const sn=name.replace(/'/g,"\\'").replace(/"/g,'&quot;');
   const c=document.createElement('div');c.className='pc';
 
   let preview;
   if(isImg){
-    preview=`<div class="thumb-wrap"><img class="thumb" src="" alt="${name}" loading="lazy" onclick="lbOpen('${path}')"/></div>`;
+    preview=`<div class="thumb-wrap"><img class="thumb" src="" alt="${name}" loading="lazy" onclick="lbOpen('${sp}')"/></div>`;
+  } else if(isPdf){
+    preview=`<div class="file-icon-wrap pdf-tile" onclick="pdfOpen('${sp}','${sn}')"><div class="file-icon" style="cursor:pointer"><span class="fi-emoji">📕</span><span class="fi-ext">PDF</span></div></div>`;
   } else {
     const wrapClass='file-icon-wrap'+(playable?' playable':'');
-    const clickAct=playable?`mpOpen('${path}','${safeName}','${cat}')`:`''`;
+    const clickAct=playable?`mpOpen('${sp}','${sn}','${cat}')`:'' ;
     preview=`<div class="${wrapClass}" onclick="${clickAct}"><div class="file-icon"><span class="fi-emoji">${emoji}</span><span class="fi-ext">${ext}</span></div></div>`;
   }
 
-  const playBtn=playable?`<button class="ab" onclick="mpOpen('${path}','${safeName}','${cat}')">▶ Play</button>`:'';
+  const playBtn=playable?`<button class="ab" onclick="mpOpen('${sp}','${sn}','${cat}')">▶ Play</button>`:'';
+  const pdfBtn=isPdf?`<button class="ab" onclick="pdfOpen('${sp}','${sn}')">📄 View</button>`:'';
 
   c.innerHTML=`${preview}
     <div class="pi"><div class="pn" title="${name}">${name}</div><div class="pm">${date}${size?' · '+size:''}</div></div>
     <div class="pa">
-      ${playBtn}
-      <button class="ab" onclick="dlFile('${path}','${name}')">↓ Save</button>
-      <button class="ab del" onclick="delFile('${path}',this)">✕ Remove</button>
+      ${playBtn}${pdfBtn}
+      <button class="ab" onclick="dlFile('${sp}','${name}')">↓ Save</button>
+      <button class="ab del" onclick="delFile('${sp}',this)">✕ Remove</button>
     </div>`;
   return c;
 }
@@ -870,6 +981,40 @@ function fmtT(s){if(!isFinite(s)||s==null)return'0:00';return`${Math.floor(s/60)
 async function lbOpen(path){const lb=document.getElementById('lb'),img=document.getElementById('lbi');lb.classList.add('on');document.body.style.overflow='hidden';img.style.opacity='.2';img.src='';try{const u=await dbxTempLink(path);img.src=u;img.style.opacity='1';}catch(e){toast('Cannot open','e');lbClose();}}
 function lbClose(){document.getElementById('lb').classList.remove('on');document.body.style.overflow='';}
 
+/* ══ PDF PREVIEW ══ */
+let _pdfPath='',_pdfName='';
+async function pdfOpen(path,name){
+  _pdfPath=path;_pdfName=name;
+  const mod=document.getElementById('pdfmod');
+  const iframe=document.getElementById('pdf-iframe');
+  const loading=document.getElementById('pdf-loading');
+  document.getElementById('pdf-title').textContent=name;
+  // Reset
+  iframe.src='';
+  loading.classList.remove('hidden');
+  mod.classList.add('on');
+  document.body.style.overflow='hidden';
+  toast('Loading PDF…');
+  try{
+    const url=await dbxTempLink(path);
+    // Try Google Docs viewer for inline PDF rendering — works well on mobile too
+    const viewerUrl='https://docs.google.com/viewer?url='+encodeURIComponent(url)+'&embedded=true';
+    iframe.onload=()=>{ loading.classList.add('hidden'); };
+    iframe.onerror=()=>{ loading.classList.add('hidden'); toast('Could not render PDF — try downloading','e'); };
+    iframe.src=viewerUrl;
+  }catch(e){
+    loading.classList.add('hidden');
+    toast('Could not open PDF','e');
+  }
+}
+function pdfClose(){
+  document.getElementById('pdfmod').classList.remove('on');
+  document.getElementById('pdf-iframe').src='';
+  document.getElementById('pdf-loading').classList.remove('hidden');
+  document.body.style.overflow='';
+}
+function pdfDownload(){if(_pdfPath&&_pdfName)dlFile(_pdfPath,_pdfName);}
+
 /* ── DOWNLOAD / DELETE ── */
 async function dlFile(path,name){toast('Preparing…');try{const u=await dbxTempLink(path);const a=document.createElement('a');a.href=u;a.download=name;a.target='_blank';a.click();}catch(e){toast('Download failed','e');}}
 async function delFile(path,btn){
@@ -880,7 +1025,7 @@ async function delFile(path,btn){
 
 /* ── VIEW / KEYS / UTIL ── */
 function setView(v){document.getElementById('vg').classList.toggle('active',v==='grid');document.getElementById('vl').classList.toggle('active',v==='list');document.getElementById('grid').classList.toggle('list',v==='list');}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){lbClose();closeSett();mpClose();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){lbClose();closeSett();mpClose();pdfClose();}});
 function fmt(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
 </script>
 </body>
