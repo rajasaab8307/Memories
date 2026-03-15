@@ -558,18 +558,21 @@ const tok=()=>_configCache?.token||localStorage.getItem('dbx_tok')||DEFAULT_TOKE
 const fold=()=>(_configCache?.folder||localStorage.getItem('dbx_fol')||DEFAULT_FOLDER).replace(/\/+$/,'');
 
 async function loadRemoteConfig(){
-  // Use the hardcoded default token to bootstrap — once we read config, we use whatever is stored there
+  // Use current best token to bootstrap (localStorage cache first, then hardcoded default)
+  const bootstrapToken=localStorage.getItem('dbx_tok')||DEFAULT_TOKEN;
   try{
     const r=await fetch('https://content.dropboxapi.com/2/files/download',{
       method:'POST',
       headers:{
-        'Authorization':'Bearer '+DEFAULT_TOKEN,
+        'Authorization':'Bearer '+bootstrapToken,
         'Dropbox-API-Arg':JSON.stringify({path:CONFIG_PATH})
       }
     });
-    if(!r.ok)return; // config doesn't exist yet — use defaults
-    const cfg=await r.json();
-    if(cfg.token&&cfg.folder){
+    if(!r.ok)return; // config file doesn't exist yet — first run, use defaults
+    // Dropbox /download returns the raw file body, NOT a JSON envelope — use text() then parse
+    const text=await r.text();
+    const cfg=JSON.parse(text);
+    if(cfg&&cfg.token&&cfg.folder){
       _configCache=cfg;
       localStorage.setItem('dbx_tok',cfg.token);
       localStorage.setItem('dbx_fol',cfg.folder);
@@ -607,7 +610,7 @@ function syncDesktop(){
   show('btn-menu',mob?'flex':'none');
 }
 window.addEventListener('resize',syncDesktop);
-syncDesktop();
+document.addEventListener('DOMContentLoaded',syncDesktop);
 
 /* TOAST */
 function toast(msg,t='s'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+t;clearTimeout(el._t);el._t=setTimeout(()=>el.className='',3500);}
@@ -620,7 +623,16 @@ function scrollToTop(){window.scrollTo({top:0,behavior:'smooth'});}
 /* AUTH */
 emailjs.init(EMAILJS_PUBLIC_KEY);
 const SESSION_KEY='mem_session',OTP_KEY='mem_otp',RL_KEY='mem_rl',SEND_KEY='mem_sends',MAX_SENDS=3,OTP_TTL=600,RL_LOCKOUT=60;
-(function checkSession(){try{const raw=localStorage.getItem(SESSION_KEY);if(!raw)return;const s=JSON.parse(raw);if(s.expiry>Date.now())onSignedIn();else localStorage.removeItem(SESSION_KEY);}catch(e){localStorage.removeItem(SESSION_KEY);}})();
+// Check persisted session — async because onSignedIn now awaits remote config
+(async function checkSession(){
+  try{
+    const raw=localStorage.getItem(SESSION_KEY);
+    if(!raw)return;
+    const s=JSON.parse(raw);
+    if(s.expiry>Date.now()) await onSignedIn();
+    else localStorage.removeItem(SESSION_KEY);
+  }catch(e){localStorage.removeItem(SESSION_KEY);}
+})();
 function generateOTP(){return String(Math.floor(100000+Math.random()*900000));}
 async function hashOTP(otp,email){const msg=otp+email+'mem_salt_2025';const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
 function checkRateLimit(){const rle=parseInt(localStorage.getItem(RL_KEY)||'0');if(rle>Date.now()){const err=document.getElementById('auth-err1');const iv=setInterval(()=>{const r=Math.ceil((parseInt(localStorage.getItem(RL_KEY)||'0')-Date.now())/1000);if(r<=0){clearInterval(iv);err.textContent='';localStorage.removeItem(RL_KEY);}else err.textContent=`Too many attempts. Wait ${r}s.`;},1000);err.textContent=`Too many attempts. Wait ${Math.ceil((rle-Date.now())/1000)}s.`;return false;}try{const raw=localStorage.getItem(SEND_KEY);const sends=raw?JSON.parse(raw):{count:0,windowStart:Date.now()};if(Date.now()-sends.windowStart>OTP_TTL*1000){localStorage.setItem(SEND_KEY,JSON.stringify({count:1,windowStart:Date.now()}));return true;}if(sends.count>=MAX_SENDS){localStorage.setItem(RL_KEY,String(Date.now()+RL_LOCKOUT*1000));checkRateLimit();return false;}sends.count++;localStorage.setItem(SEND_KEY,JSON.stringify(sends));}catch(e){}return true;}
@@ -701,29 +713,88 @@ async function loadStorage(){const el=document.getElementById('stg');el.classLis
 function dzo(e){e.preventDefault();document.getElementById('dz').classList.add('over');}
 function dzl(){document.getElementById('dz').classList.remove('over');}
 function dzd(e){e.preventDefault();dzl();upload(e.dataTransfer.files);}
-async function upload(files){const valid=Array.from(files);if(!valid.length)return toast('No files selected.','e');const pw=document.getElementById('pw'),pf=document.getElementById('pf'),pp=document.getElementById('ppct'),pt=document.getElementById('ptxt');pw.style.display='block';try{await dbxRPC('files/create_folder_v2',{path:fold(),autorename:false});}catch{}let failed=0;for(let i=0;i<valid.length;i++){const f=valid[i];pt.textContent=`${i+1}/${valid.length}: ${f.name}`;const pct=Math.round(i/valid.length*100);pf.style.width=pct+'%';pp.textContent=pct+'%';try{await dbxUpload(fold()+'/'+Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_'),f);}catch(e){failed++;toast('Failed: '+f.name,'e');}}pf.style.width='100%';pp.textContent='100%';setTimeout(()=>{pw.style.display='none';pf.style.width='0%';},700);if(!failed)toast(`${valid.length} memor${valid.length===1?'y':'ies'} saved ♡`);document.getElementById('fi').value='';loadFiles();loadStorage();}
+async function upload(files){
+  const valid=Array.from(files);
+  if(!valid.length)return toast('No files selected.','e');
+  const pw=document.getElementById('pw'),pf=document.getElementById('pf'),pp=document.getElementById('ppct'),pt=document.getElementById('ptxt');
+  pw.style.display='block';
+  // Create folder — ignore "already exists" error only
+  try{await dbxRPC('files/create_folder_v2',{path:fold(),autorename:false});}
+  catch(e){if(!e.message.includes('path/conflict'))throw e;}
+  let failed=0;
+  for(let i=0;i<valid.length;i++){
+    const f=valid[i];
+    pt.textContent=`${i+1}/${valid.length}: ${f.name}`;
+    const pct=Math.round(i/valid.length*100);
+    pf.style.width=pct+'%';pp.textContent=pct+'%';
+    try{
+      await dbxUpload(fold()+'/'+Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_'),f);
+    }catch(e){
+      failed++;
+      toast('Failed: '+f.name,'e');
+    }
+  }
+  pf.style.width='100%';pp.textContent='100%';
+  setTimeout(()=>{pw.style.display='none';pf.style.width='0%';},700);
+  if(!failed)toast(`${valid.length} memor${valid.length===1?'y':'ies'} saved ♡`);
+  else if(failed<valid.length)toast(`${valid.length-failed} saved, ${failed} failed`,'e');
+  document.getElementById('fi').value='';
+  loadFiles();loadStorage();
+}
 
 /* LOAD FILES */
 const tcache={};
-async function loadFiles(){const g=document.getElementById('grid'),em=document.getElementById('empty');g.innerHTML='<div class="spin"></div>';em.classList.remove('on');try{try{await dbxRPC('files/create_folder_v2',{path:fold(),autorename:false});}catch{}const data=await dbxRPC('files/list_folder',{path:fold(),limit:500});allEntries=(data.entries||[]).filter(e=>e['.tag']==='file').sort((a,b)=>new Date(b.client_modified)-new Date(a.client_modified));g.innerHTML='';renderFiles();}catch(e){g.innerHTML='';if(e.message.includes('not_found')){em.classList.add('on');}else{toast('Could not load: '+e.message,'e');g.innerHTML=`<p style="color:#e07080;padding:24px;font-size:.8rem">⚠ ${e.message}</p>`;}}}
-
+async function loadFiles(){
+  const g=document.getElementById('grid'),em=document.getElementById('empty');
+  g.innerHTML='<div class="spin"></div>';em.classList.remove('on');
+  try{
+    try{await dbxRPC('files/create_folder_v2',{path:fold(),autorename:false});}
+    catch(e){if(!e.message.includes('path/conflict'))console.warn('Folder:',e.message);}
+    const data=await dbxRPC('files/list_folder',{path:fold(),limit:500});
+    allEntries=(data.entries||[]).filter(e=>e['.tag']==='file').sort((a,b)=>new Date(b.client_modified)-new Date(a.client_modified));
+    g.innerHTML='';renderFiles();
+  }catch(e){
+    g.innerHTML='';
+    if(e.message&&e.message.includes('not_found')){em.classList.add('on');}
+    else{toast('Could not load: '+e.message,'e');g.innerHTML=`<p style="color:#e07080;padding:24px;font-size:.8rem">⚠ ${e.message}</p>`;}
+  }
+}
 /* BUILD CARD */
 function buildCard(e){
   const name=e.name||'Untitled',size=fmt(e.size||0),path=e.path_lower;
   const date=e.client_modified?new Date(e.client_modified).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
   const cat=getFileCat(name),isImg=cat==='image',playable=cat==='audio'||cat==='video';
   const emoji=getFileEmoji(name),ext=(name.split('.').pop()||'').toUpperCase().slice(0,6);
-  const sn=name.replace(/'/g,"\\'");
+  // Escape for safe HTML attribute use
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const c=document.createElement('div');c.className='pc';
+
   let preview;
   if(isImg){
-    preview=`<div class="thumb-wrap"><img class="thumb" src="" alt="${name}" loading="lazy" onclick="lbOpen('${path}')"/></div>`;
+    preview=`<div class="thumb-wrap"><img class="thumb" src="" alt="${esc(name)}" loading="lazy"/></div>`;
   } else {
-    const ca=playable?`onclick="mpOpen('${path}','${sn}','${cat}')"`:''
-    preview=`<div class="file-icon-wrap"><div class="file-icon" ${ca}><span class="fi-emoji">${emoji}</span><span class="fi-ext">${ext}</span></div>${playable?`<div class="play-pill">▶ Play</div>`:''}</div>`;
+    preview=`<div class="file-icon-wrap${playable?' playable':''}"><div class="file-icon"><span class="fi-emoji">${emoji}</span><span class="fi-ext">${esc(ext)}</span></div>${playable?'<div class="play-pill">▶ Play</div>':''}</div>`;
   }
-  const playBtn=playable?`<button class="ab" onclick="mpOpen('${path}','${sn}','${cat}')">▶</button>`:'';
-  c.innerHTML=`${preview}<div class="pi"><div class="pn" title="${name}">${name}</div><div class="pm">${date}${size?' · '+size:''}</div></div><div class="pa">${playBtn}<button class="ab" onclick="dlFile('${path}','${name}')">↓</button><button class="ab del" onclick="delFile('${path}',this)">✕</button></div>`;
+
+  c.innerHTML=`${preview}<div class="pi"><div class="pn" title="${esc(name)}">${esc(name)}</div><div class="pm">${esc(date)}${size?' · '+size:''}</div></div><div class="pa"></div>`;
+
+  // Wire up events safely via JS (no inline onclick = no quote-escaping bugs)
+  if(isImg){
+    c.querySelector('.thumb').addEventListener('click',()=>lbOpen(path));
+  } else if(playable){
+    c.querySelector('.file-icon').addEventListener('click',()=>mpOpen(path,name,cat));
+  }
+
+  const pa=c.querySelector('.pa');
+  if(playable){
+    const pb=document.createElement('button');pb.className='ab';pb.textContent='▶';
+    pb.addEventListener('click',()=>mpOpen(path,name,cat));pa.appendChild(pb);
+  }
+  const db=document.createElement('button');db.className='ab';db.textContent='↓';
+  db.addEventListener('click',()=>dlFile(path,name));pa.appendChild(db);
+  const xb=document.createElement('button');xb.className='ab del';xb.textContent='✕';
+  xb.addEventListener('click',function(){delFile(path,this);});pa.appendChild(xb);
+
   return c;
 }
 
@@ -735,28 +806,105 @@ async function mpOpen(path,name,cat){
     const url=await dbxTempLink(path);
     mpIsAudio=cat==='audio';
     const aEl=document.getElementById('mp-audio'),vEl=document.getElementById('mp-video');
-    [aEl,vEl].forEach(el=>{el.pause();el.src='';});
+    // Stop any existing playback cleanly
+    [aEl,vEl].forEach(el=>{try{el.pause();}catch(e){}el.removeAttribute('src');el.load();});
     document.getElementById('mp-title').textContent=name;
-    if(mpIsAudio){document.getElementById('mp-audio-ui').style.display='block';document.getElementById('mp-video-ui').style.display='none';document.getElementById('mp-audio-name').textContent=name;aEl.src=url;mpMediaEl=aEl;}
-    else{document.getElementById('mp-audio-ui').style.display='none';document.getElementById('mp-video-ui').style.display='block';vEl.src=url;mpMediaEl=vEl;}
-    document.getElementById('mp-seek').value=0;document.getElementById('mp-cur').textContent='0:00';document.getElementById('mp-dur').textContent='0:00';document.getElementById('mp-playbtn').textContent='▶';document.getElementById('mp-vinyl').classList.remove('playing');
-    mpMediaEl.volume=parseFloat(document.getElementById('mp-vol').value)||1;
-    mpMediaEl.onloadedmetadata=()=>{document.getElementById('mp-dur').textContent=fmtTime(mpMediaEl.duration||0);document.getElementById('mp-seek').max=mpMediaEl.duration||100;};
-    mpMediaEl.ontimeupdate=()=>{document.getElementById('mp-cur').textContent=fmtTime(mpMediaEl.currentTime);document.getElementById('mp-seek').value=mpMediaEl.currentTime;};
-    mpMediaEl.onended=()=>{document.getElementById('mp-playbtn').textContent='▶';document.getElementById('mp-vinyl').classList.remove('playing');document.getElementById('mp-seek').value=0;};
-    mpMediaEl.onerror=()=>toast('Could not play this file','e');
-    document.getElementById('mplayer').classList.add('on');document.body.style.overflow='hidden';
-    await mpMediaEl.play();
-    document.getElementById('mp-playbtn').textContent='⏸';
-    if(mpIsAudio)document.getElementById('mp-vinyl').classList.add('playing');
-  }catch(e){toast('Could not open media','e');}
+    if(mpIsAudio){
+      document.getElementById('mp-audio-ui').style.display='block';
+      document.getElementById('mp-video-ui').style.display='none';
+      document.getElementById('mp-audio-name').textContent=name;
+      aEl.src=url;mpMediaEl=aEl;
+    }else{
+      document.getElementById('mp-audio-ui').style.display='none';
+      document.getElementById('mp-video-ui').style.display='block';
+      vEl.src=url;mpMediaEl=vEl;
+    }
+    // Reset controls
+    document.getElementById('mp-seek').value=0;
+    document.getElementById('mp-cur').textContent='0:00';
+    document.getElementById('mp-dur').textContent='0:00';
+    document.getElementById('mp-playbtn').textContent='▶';
+    document.getElementById('mp-vinyl').classList.remove('playing');
+    mpMediaEl.volume=Math.max(0,Math.min(1,parseFloat(document.getElementById('mp-vol').value)||1));
+
+    mpMediaEl.onloadedmetadata=()=>{
+      const dur=mpMediaEl.duration;
+      if(dur&&isFinite(dur)){
+        document.getElementById('mp-dur').textContent=fmtTime(dur);
+        document.getElementById('mp-seek').max=dur;
+      }
+    };
+    mpMediaEl.ontimeupdate=()=>{
+      if(!mpMediaEl)return;
+      document.getElementById('mp-cur').textContent=fmtTime(mpMediaEl.currentTime);
+      if(mpMediaEl.duration&&isFinite(mpMediaEl.duration))
+        document.getElementById('mp-seek').value=mpMediaEl.currentTime;
+    };
+    mpMediaEl.onended=()=>{
+      document.getElementById('mp-playbtn').textContent='▶';
+      document.getElementById('mp-vinyl').classList.remove('playing');
+      if(mpMediaEl)document.getElementById('mp-seek').value=mpMediaEl.duration||0;
+    };
+    mpMediaEl.onerror=()=>{toast('Could not play this file — format may be unsupported','e');};
+
+    // Show player immediately — don't wait for play() which may be blocked by autoplay policy
+    document.getElementById('mplayer').classList.add('on');
+    document.body.style.overflow='hidden';
+
+    // Attempt autoplay — silently set paused state if browser blocks it
+    try{
+      await mpMediaEl.play();
+      document.getElementById('mp-playbtn').textContent='⏸';
+      if(mpIsAudio)document.getElementById('mp-vinyl').classList.add('playing');
+    }catch(playErr){
+      // Autoplay blocked — player is open, user can tap play manually
+      document.getElementById('mp-playbtn').textContent='▶';
+    }
+  }catch(e){
+    toast('Could not load file: '+(e.message||'unknown error'),'e');
+  }
 }
-function mpTogglePlay(){if(!mpMediaEl)return;if(mpMediaEl.paused){mpMediaEl.play();document.getElementById('mp-playbtn').textContent='⏸';if(mpIsAudio)document.getElementById('mp-vinyl').classList.add('playing');}else{mpMediaEl.pause();document.getElementById('mp-playbtn').textContent='▶';document.getElementById('mp-vinyl').classList.remove('playing');}}
-function mpSeek(v){if(mpMediaEl)mpMediaEl.currentTime=parseFloat(v);}
-function mpSkip(s){if(mpMediaEl)mpMediaEl.currentTime=Math.max(0,Math.min(mpMediaEl.duration||0,mpMediaEl.currentTime+s));}
-function mpVol(v){if(mpMediaEl)mpMediaEl.volume=parseFloat(v);document.getElementById('mp-vol-icon').textContent=v==0?'🔇':v<0.5?'🔉':'🔊';}
-function mpMute(){if(!mpMediaEl)return;mpMediaEl.muted=!mpMediaEl.muted;document.getElementById('mp-vol-icon').textContent=mpMediaEl.muted?'🔇':'🔊';}
-function mpClose(){if(mpMediaEl){mpMediaEl.pause();mpMediaEl.src='';mpMediaEl=null;}document.getElementById('mp-audio').src='';document.getElementById('mp-video').src='';document.getElementById('mp-vinyl').classList.remove('playing');document.getElementById('mplayer').classList.remove('on');document.body.style.overflow='';}
+function mpTogglePlay(){
+  if(!mpMediaEl)return;
+  if(mpMediaEl.paused){
+    mpMediaEl.play().then(()=>{
+      document.getElementById('mp-playbtn').textContent='⏸';
+      if(mpIsAudio)document.getElementById('mp-vinyl').classList.add('playing');
+    }).catch(()=>{});
+  }else{
+    mpMediaEl.pause();
+    document.getElementById('mp-playbtn').textContent='▶';
+    document.getElementById('mp-vinyl').classList.remove('playing');
+  }
+}
+function mpSeek(v){if(mpMediaEl&&isFinite(mpMediaEl.duration))mpMediaEl.currentTime=Math.max(0,Math.min(mpMediaEl.duration,parseFloat(v)));}
+function mpSkip(s){if(mpMediaEl&&isFinite(mpMediaEl.duration))mpMediaEl.currentTime=Math.max(0,Math.min(mpMediaEl.duration,mpMediaEl.currentTime+s));}
+function mpVol(v){
+  const vol=Math.max(0,Math.min(1,parseFloat(v)));
+  if(mpMediaEl)mpMediaEl.volume=vol;
+  document.getElementById('mp-vol-icon').textContent=vol===0?'🔇':vol<0.5?'🔉':'🔊';
+}
+function mpMute(){
+  if(!mpMediaEl)return;
+  mpMediaEl.muted=!mpMediaEl.muted;
+  document.getElementById('mp-vol-icon').textContent=mpMediaEl.muted?'🔇':'🔊';
+}
+function mpClose(){
+  if(mpMediaEl){
+    try{mpMediaEl.pause();}catch(e){}
+    mpMediaEl.removeAttribute('src');
+    mpMediaEl.load();
+    mpMediaEl=null;
+  }
+  // Clean both elements
+  ['mp-audio','mp-video'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){try{el.pause();}catch(e){}el.removeAttribute('src');el.load();}
+  });
+  document.getElementById('mp-vinyl').classList.remove('playing');
+  document.getElementById('mplayer').classList.remove('on');
+  document.body.style.overflow='';
+}
 function fmtTime(s){if(isNaN(s)||s===Infinity)return'0:00';const m=Math.floor(s/60),sec=Math.floor(s%60);return`${m}:${String(sec).padStart(2,'0')}`;}
 
 /* LIGHTBOX */
