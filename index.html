@@ -394,18 +394,15 @@ for(let i=0;i<14;i++){const p=document.createElement('div');p.className='petal';
 
 <script>
 /* ── CONFIG ── */
-// ⚠️ Fill in your EmailJS credentials:
-const EMAILJS_SERVICE_ID  = 'service_58sh6gg';
-const EMAILJS_TEMPLATE_ID = 'template_epgktou';
+const EMAILJS_SERVICE_ID  = 'service_h98usal';
+const EMAILJS_TEMPLATE_ID = 'template_bcbbf1h';
 const EMAILJS_PUBLIC_KEY  = 'NwxSAOSSHWijzF0G2';
-
-// ⚠️ Allowed emails (add partner email when ready):
-const ALLOWED_EMAILS = ['rajasaab8307@gmail.com'];
+const ALLOWED_EMAILS = ['rajasaab8307@gmail.com', 'thunderbreaker20007@gmail.com'];; // add partner email here
 
 const DEFAULT_TOKEN  = 'sl.u.AGUKSRJnyQ6tIK26zss6IFesA6z0q2pkYDTv3x4wwpVbT9JFQstpunJAFaYoIn4v3dCxQ81DU73gVzozBdBObOejyoFl0SGuTOxUSiN4dZfwyOPTTBr9Z_Bijm88pJZu-QbOQHcgZlgytrTtwyctuoMjb9urb4stAm_3PQUP-mgg_Y2KWqwDUHlwC0tdZqAyXcY_h0ba5YG9wbb0N_fiR0amIn1QVe-uEfOgPfWT6iG3dY41s2zWQImXC2qYrmA_v6JViFRA8wR35l_x2yz1XTfv8uJZuPrLxbCxROvsZvu1B8GHTDTty2QGFOWJDSl0WJzo-NTOr38-w8CMzP3sUMuScQbAOGkMkMxFmcE2_FG9ct0t7aYK6lY4If1vExezcuTTsPZsKYnyDFi09wa9KXDbsinQcLrtdG8kEVLhF_UzhGUirQpAjHs-3RyZbZoeOL2zcHMEBwQWdBuLsjYGbwKW7enUgDLOznOcA5iDY3ZYjOwMmy-EGDY08ipH0AH39aGJR0HUUUNjvMqJMRa1n-imidWeooUiUNEbudRfZQCgDlBtuTuEavhhEYzubsHYzgvSl8cdfcpcHtMapxfQZe1yC1F3i1RI4ToevYPp8kZ6hFOrpR0vUmlg6NQqh4QD3a02ohjz6Xr47Xqxf7iZtMsUIH9ee39d7q40ovuvaG8y-RpeGkrPSUflFJETS3DXQcBQ245tan-SmbZsRv5K7laJHLLd2lnW5xYCpa_oszaNz6gpnC3WMc9Um4xZ_7g0CkzyC31VTiqVUcoNQXr6H6CVg1O49B2jpvnOyCJcqoa-2uwQ7PFg2UOZzL6KRri7rvLQqm-fJ_5dsze2lcec8NJU5-QTZzM_OzF7iZqUnFIusM74iPv58u3lHE_QV5lp9Mw2HMKK4-NCqxfwFtWOkJ35kPKma4lUKIQHQHTYLchIiVpBivLYNof8fjmIFIwOu4_d6fbvc66K7BG7aU_Q-iG5z5Q5m4ZBVWrkG0hdJAlBkMX9QqZDW9WJuA_THJIftBeuAAJHkZCHtgDwkEm010OPjQc0OJQ4jx4Gl-SZVQ7iMouGjS1S2ySCSx2H9QHWTTJqs8_NJGPLk7wZ70uxbTfo34qoHvwBVioLf4HlVZne1go67Amdy_A7-tTQO7qJYq14vUDs47gyMWn026A0exi43g-Jlrsk3hYLV2vRLCMKr1aAbdRBjdNXoC0rQO020dUEyYINqq1aWnlqUT0Y5ZI_-khO_WOkziT-sb3E0RvAdhVM7GgjwNhIB0WUDMtYHY05q1eEHKA7-YV8-oxVANxpuX_4ZGWDkb_D9-hMgZRkz_qsO3g8hidRUTX8OsCSApSOOTDKv2dMddL1BUTrCL_ODoED-i23_kV3ojohqo8hTgxH3HGJo_c6AP1Nrya2kCQqaPfCWukLkLc2972FSiRtIhJGy8itG3-jey8SpzZ7ww';
 const DEFAULT_FOLDER = '/Luminary';
 const tok  = () => localStorage.getItem('dbx_tok')  || DEFAULT_TOKEN;
-const fold = () => (localStorage.getItem('dbx_fol') || DEFAULT_FOLDER).replace(/\/+$/,'');
+const fold = () => (localStorage.getItem('dbx_fol') || DEFAULT_FOLDER).replace(/\/+$/, '');
 
 /* ── THEME ── */
 function applyTheme(isDark){document.documentElement.setAttribute('data-theme',isDark?'dark':'light');document.getElementById('theme-chk').checked=!isDark;localStorage.setItem('lum_theme',isDark?'dark':'light');}
@@ -415,48 +412,134 @@ function toggleTheme(isLight){applyTheme(!isLight);}
 /* ── TOAST ── */
 function toast(msg,t='s'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+t;clearTimeout(el._t);el._t=setTimeout(()=>el.className='',3500);}
 
-/* ── AUTH ── */
-let _pendingOTP=null;
+/* ── AUTH — v2 logic, doc7 element IDs ── */
+emailjs.init(EMAILJS_PUBLIC_KEY);
 
-function showStep(n){['email','otp','blocked'].forEach(s=>document.getElementById('step-'+s).classList.remove('on'));document.getElementById('step-'+n).classList.add('on');}
+const SESSION_KEY = 'mem_session';
+const OTP_KEY     = 'mem_otp';
+const RL_KEY      = 'mem_rl';
+const SEND_KEY    = 'mem_sends';
+const MAX_SENDS   = 3;
+const OTP_TTL     = 600;
+const RL_LOCKOUT  = 60;
 
-function setBusy(id,busy,label){const b=document.getElementById(id);if(!b)return;b.disabled=busy;b.textContent=busy?'Please wait…':label;b.style.opacity=busy?'.6':'1';}
+let currentUser = null;
+let otpEmail    = '';
+let resendTimer = null;
 
-function genOTP(){return String(Math.floor(100000+Math.random()*900000));}
+// Check persisted session on load
+(function checkSession(){
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if(!raw) return;
+    const s = JSON.parse(raw);
+    if(s.expiry > Date.now()) onSignedIn();
+    else localStorage.removeItem(SESSION_KEY);
+  } catch(e){ localStorage.removeItem(SESSION_KEY); }
+})();
 
-async function sendOTP(resend=false){
-  const email=document.getElementById('auth-email').value.trim().toLowerCase();
-  document.getElementById('auth-err1').textContent='';
-  if(!email){document.getElementById('auth-err1').textContent='Please enter your email.';return;}
-  if(!ALLOWED_EMAILS.includes(email)){showStep('blocked');return;}
-  setBusy('send-btn',true,'Send Magic Code ♡');
-  const otp=genOTP();
-  _pendingOTP={code:otp,email,expires:Date.now()+10*60*1000};
-  try{
-    emailjs.init(EMAILJS_PUBLIC_KEY);
-    await emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{otp,email,to_email:email});
-    document.getElementById('otp-email-lbl').textContent=email;
-    document.querySelectorAll('#otp-inputs input').forEach(i=>i.value='');
-    document.getElementById('auth-err2').textContent='';
-    showStep('otp');
-    document.querySelector('#otp-inputs input').focus();
-    if(resend)toast('New code sent ♡');
-  }catch(e){
-    document.getElementById('auth-err1').textContent='Failed to send code. Check your EmailJS config.';
-    console.error('EmailJS error:',e);
-  }finally{setBusy('send-btn',false,'Send Magic Code ♡');}
+function generateOTP(){ return String(Math.floor(100000 + Math.random() * 900000)); }
+
+async function hashOTP(otp, email){
+  const msg = otp + email + 'mem_salt_2025';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-function verifyOTP(){
-  const entered=Array.from(document.querySelectorAll('#otp-inputs input')).map(i=>i.value).join('');
-  document.getElementById('auth-err2').textContent='';
-  if(entered.length<6){document.getElementById('auth-err2').textContent='Enter the full 6-digit code.';return;}
-  if(!_pendingOTP){document.getElementById('auth-err2').textContent='Session expired. Please resend.';return;}
-  if(Date.now()>_pendingOTP.expires){document.getElementById('auth-err2').textContent='Code expired. Please resend.';_pendingOTP=null;return;}
-  if(entered!==_pendingOTP.code){document.getElementById('auth-err2').textContent='Incorrect code. Try again.';return;}
-  _pendingOTP=null;
-  sessionStorage.setItem('lum_ok','1');
-  onSignedIn();
+function checkRateLimit(){
+  const rlExpiry = parseInt(localStorage.getItem(RL_KEY)||'0');
+  if(rlExpiry > Date.now()){
+    // Show blocked message inline
+    const err = document.getElementById('auth-err1');
+    const secs = Math.ceil((rlExpiry - Date.now()) / 1000);
+    err.textContent = `Too many attempts. Please wait ${secs}s before trying again.`;
+    err.className = '';
+    // Start countdown in error message
+    const interval = setInterval(()=>{
+      const remaining = Math.ceil((parseInt(localStorage.getItem(RL_KEY)||'0') - Date.now()) / 1000);
+      if(remaining <= 0){ clearInterval(interval); err.textContent=''; localStorage.removeItem(RL_KEY); }
+      else err.textContent = `Too many attempts. Please wait ${remaining}s before trying again.`;
+    }, 1000);
+    return false;
+  }
+  try {
+    const raw = localStorage.getItem(SEND_KEY);
+    const sends = raw ? JSON.parse(raw) : { count:0, windowStart:Date.now() };
+    if(Date.now() - sends.windowStart > OTP_TTL*1000){
+      localStorage.setItem(SEND_KEY, JSON.stringify({count:1, windowStart:Date.now()})); return true;
+    }
+    if(sends.count >= MAX_SENDS){
+      localStorage.setItem(RL_KEY, String(Date.now() + RL_LOCKOUT*1000));
+      checkRateLimit(); return false;
+    }
+    sends.count++; localStorage.setItem(SEND_KEY, JSON.stringify(sends));
+  } catch(e){}
+  return true;
+}
+
+function showStep(n){['email','otp','blocked'].forEach(s=>document.getElementById('step-'+s).classList.remove('on'));document.getElementById('step-'+n).classList.add('on');}
+function setBusy(id,busy,label){const b=document.getElementById(id);if(!b)return;b.disabled=busy;b.textContent=busy?'Please wait…':label;b.style.opacity=busy?'.6':'1';}
+
+async function sendOTP(resend=false){
+  const email = document.getElementById('auth-email').value.trim().toLowerCase();
+  document.getElementById('auth-err1').textContent = '';
+  if(!email){ document.getElementById('auth-err1').textContent='Please enter your email.'; return; }
+  if(!ALLOWED_EMAILS.includes(email)){ showStep('blocked'); return; }
+  if(!checkRateLimit()) return;
+
+  setBusy('send-btn', true, 'Send Magic Code ♡');
+  const code = generateOTP();
+
+  try {
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {passcode:code, to_email:email});
+  } catch(e) {
+    document.getElementById('auth-err1').textContent = 'Failed to send code. Check your EmailJS config.';
+    setBusy('send-btn', false, 'Send Magic Code ♡'); return;
+  }
+
+  const hash = await hashOTP(code, email);
+  localStorage.setItem(OTP_KEY, JSON.stringify({hash, email, expiry: Date.now() + OTP_TTL*1000}));
+  otpEmail = email;
+
+  document.getElementById('otp-email-lbl').textContent = email;
+  document.querySelectorAll('#otp-inputs input').forEach(i=>i.value='');
+  document.getElementById('auth-err2').textContent = '';
+  showStep('otp');
+  document.querySelector('#otp-inputs input').focus();
+  setBusy('send-btn', false, 'Send Magic Code ♡');
+  if(resend) toast('New code sent ♡');
+
+  // Start expiry countdown in err2 area
+  startExpiryCountdown();
+}
+
+async function verifyOTP(){
+  const entered = Array.from(document.querySelectorAll('#otp-inputs input')).map(i=>i.value).join('');
+  document.getElementById('auth-err2').textContent = '';
+  if(entered.length < 6){ document.getElementById('auth-err2').textContent='Enter the full 6-digit code.'; return; }
+
+  setBusy('verify-btn', true, 'Enter our space ♡');
+  try {
+    const raw = localStorage.getItem(OTP_KEY);
+    if(!raw){ document.getElementById('auth-err2').textContent='No active code. Please resend.'; setBusy('verify-btn',false,'Enter our space ♡'); return; }
+    const stored = JSON.parse(raw);
+    if(stored.expiry < Date.now()){ document.getElementById('auth-err2').textContent='Code expired. Please resend.'; setBusy('verify-btn',false,'Enter our space ♡'); return; }
+    const inputHash = await hashOTP(entered, stored.email);
+    if(inputHash !== stored.hash){
+      document.getElementById('auth-err2').textContent='Incorrect code. Try again.';
+      document.querySelectorAll('#otp-inputs input').forEach(i=>{i.value='';});
+      document.querySelector('#otp-inputs input').focus();
+      setBusy('verify-btn',false,'Enter our space ♡'); return;
+    }
+    // ✓ Valid
+    localStorage.setItem(SESSION_KEY, JSON.stringify({email:stored.email, expiry:Date.now()+86400000}));
+    localStorage.removeItem(OTP_KEY);
+    stopExpiryCountdown();
+    onSignedIn();
+  } catch(err){
+    document.getElementById('auth-err2').textContent='Verification failed. Please try again.';
+  }
+  setBusy('verify-btn',false,'Enter our space ♡');
 }
 
 function otpNext(el,idx){el.value=el.value.replace(/[^0-9]/g,'');if(el.value&&idx<5)document.querySelectorAll('#otp-inputs input')[idx+1].focus();const all=Array.from(document.querySelectorAll('#otp-inputs input')).map(i=>i.value).join('');if(all.length===6)verifyOTP();}
@@ -468,10 +551,46 @@ document.addEventListener('paste',function(e){
   if(text.length===6){e.preventDefault();const inputs=document.querySelectorAll('#otp-inputs input');text.split('').forEach((d,i)=>inputs[i].value=d);verifyOTP();}
 });
 
-function onSignedIn(){document.getElementById('login-screen').style.display='none';document.getElementById('app-screen').style.display='block';loadFiles();loadStorage();}
+// Expiry countdown shown in auth-err2
+let expiryInterval = null;
+function startExpiryCountdown(){
+  stopExpiryCountdown();
+  let remaining = OTP_TTL;
+  function update(){
+    const m=Math.floor(remaining/60),s=remaining%60;
+    const el=document.getElementById('auth-err2');
+    if(el && document.getElementById('step-otp').classList.contains('on')){
+      el.style.color='var(--muted)';
+      el.textContent=`Code expires in ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+  }
+  update();
+  expiryInterval = setInterval(()=>{
+    remaining--;
+    if(remaining<=0){
+      stopExpiryCountdown();
+      document.getElementById('auth-err2').textContent='⏰ Code expired. Please resend.';
+      document.getElementById('auth-err2').style.color='var(--danger)';
+      document.querySelectorAll('#otp-inputs input').forEach(i=>i.value='');
+      setBusy('verify-btn',true,'Enter our space ♡');
+    } else { update(); }
+  },1000);
+}
+function stopExpiryCountdown(){
+  clearInterval(expiryInterval); expiryInterval=null;
+  const el=document.getElementById('auth-err2');
+  if(el){el.textContent='';el.style.color='';}
+}
+
+function onSignedIn(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  loadFiles();loadStorage();
+}
 
 function logout(){
-  sessionStorage.removeItem('lum_ok');
+  localStorage.removeItem(SESSION_KEY);
+  stopExpiryCountdown();
   document.getElementById('app-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('auth-email').value='';
@@ -480,12 +599,16 @@ function logout(){
   allEntries=[];showStep('email');
 }
 
-window.addEventListener('DOMContentLoaded',()=>{if(sessionStorage.getItem('lum_ok')==='1'){onSignedIn();}});
+window.addEventListener('DOMContentLoaded',()=>{
+  // Session already checked above synchronously
+});
+
+
 
 /* ── SETTINGS ── */
 function openSett(){document.getElementById('s-tok').value=tok();document.getElementById('s-fol').value=fold();document.getElementById('smsg').textContent='';document.getElementById('smod').classList.add('on');}
 function closeSett(){document.getElementById('smod').classList.remove('on');}
-function saveSett(){const nt=document.getElementById('s-tok').value.trim(),nf=document.getElementById('s-fol').value.trim()||'/Luminary';if(!nt)return sm('Token cannot be empty.');localStorage.setItem('dbx_tok',nt);localStorage.setItem('dbx_fol',nf);sm('Saved ♡',true);setTimeout(closeSett,1200);toast('Settings saved ♡');loadFiles();}
+function saveSett(){const nt=document.getElementById('s-tok').value.trim(),nf=document.getElementById('s-fol').value.trim()||'/Luminary';if(!nt)return sm('Token cannot be empty.');localStorage.setItem('dbx_tok',nt);localStorage.setItem('dbx_fol',nf);sm('Saved ♡',true);setTimeout(closeSett,1200);toast('Settings saved ♡');loadFiles();loadStorage();}
 function sm(msg,ok=false){const el=document.getElementById('smsg');el.textContent=msg;el.className=ok?'ok':'';}
 
 /* ── FILE TYPE HELPERS ── */
