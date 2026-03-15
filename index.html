@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Our Memories"/>
+<meta name="application-name" content="Our Memories"/>
+<meta name="theme-color" content="#1a0a0d" id="theme-color-meta"/>
+<meta name="description" content="A private collection of our memories"/>
 <title>Us — Our Memories</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@200;300;400&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -313,6 +317,21 @@ audio#mp-audio{display:none}
 #toast.s{border-color:rgba(196,82,110,.5)}
 #toast.e{border-color:rgba(224,90,90,.5)}
 
+/* PWA INSTALL BANNER */
+#pwa-banner{display:none;position:fixed;bottom:calc(70px + env(safe-area-inset-bottom));left:12px;right:12px;z-index:1500;background:var(--sheet-bg);border:1px solid var(--border2);border-radius:18px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:slideUp .38s cubic-bezier(.16,1,.3,1) both}
+#pwa-banner.on{display:flex;align-items:center;gap:12px}
+.pwa-icon{font-size:1.6rem;flex-shrink:0;line-height:1}
+.pwa-text{flex:1;min-width:0}
+.pwa-text strong{display:block;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1rem;font-weight:300;color:var(--blush);margin-bottom:2px}
+.pwa-text span{font-size:.72rem;color:var(--muted);letter-spacing:.03em}
+.pwa-install{background:linear-gradient(135deg,var(--petal),#a83050);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:'Jost',sans-serif;font-size:.78rem;font-weight:400;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.pwa-install:active{transform:scale(.96)}
+.pwa-dismiss{background:transparent;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px;flex-shrink:0;line-height:1}
+@media(min-width:640px){
+  #pwa-banner{bottom:28px;left:auto;right:28px;width:340px}
+}
+
+
 /* DESKTOP */
 @media(min-width:640px){
   .main{padding:36px 28px;padding-bottom:48px}
@@ -385,7 +404,8 @@ for(let i=0;i<pc;i++){const p=document.createElement('div');p.className='petal';
       <div class="logo"><span class="logo-heart">♡</span> Our Memories</div>
       <div class="hdr-r">
         <div class="badge-desktop"><span class="dot" style="width:6px;height:6px;background:var(--petal);border-radius:50%;animation:pulse 2s ease-in-out infinite;display:inline-block"></span> Dropbox</div>
-        <label class="theme-toggle" id="desktop-theme" style="display:none">
+        <!-- Theme toggle — always visible in header on all screen sizes -->
+        <label class="theme-toggle" id="desktop-theme">
           <input type="checkbox" id="theme-chk" onchange="toggleTheme(this.checked)"/>
           <span class="tt-track"></span><span class="tt-thumb"></span>
           <span class="tt-icon tt-moon">🌙</span><span class="tt-icon tt-sun">☀️</span>
@@ -404,6 +424,7 @@ for(let i=0;i<pc;i++){const p=document.createElement('div');p.className='petal';
       <p>tap to choose · photos, videos, music & more</p>
     </div>
     <input type="file" id="fi" multiple onchange="upload(this.files)"/>
+    <!-- Camera capture — mobile only, opens camera directly -->
 
     <div class="pw" id="pw">
       <div class="pl"><span id="ptxt">Saving…</span><span id="ppct">0%</span></div>
@@ -423,7 +444,6 @@ for(let i=0;i<pc;i++){const p=document.createElement('div');p.className='petal';
         <button class="vb" id="vl" onclick="setView('list')">☰</button>
       </div>
     </div>
-
     <div class="filter-scroll">
       <div class="filter-tabs">
         <button class="ftab active" data-filter="all" onclick="setFilter('all')">All</button>
@@ -446,16 +466,21 @@ for(let i=0;i<pc;i++){const p=document.createElement('div');p.className='petal';
 
   <!-- BOTTOM NAV (mobile only) -->
   <nav class="bottom-nav">
-    <button class="bnav-btn" onclick="scrollToTop()">
-      <span class="bnav-icon">🏠</span>Home
-    </button>
-    <button class="bnav-btn bnav-add" onclick="document.getElementById('fi').click()">
-      <span class="bnav-icon">＋</span>Upload
-    </button>
-    <button class="bnav-btn" onclick="openMenu()">
-      <span class="bnav-icon">☰</span>More
-    </button>
+    <button class="bnav-btn" onclick="scrollToTop()"><span class="bnav-icon">🏠</span>Home</button>
+    <button class="bnav-btn bnav-add" onclick="document.getElementById('fi').click()"><span class="bnav-icon">＋</span>Upload</button>
+    <button class="bnav-btn" onclick="openMenu()"><span class="bnav-icon">☰</span>More</button>
   </nav>
+
+  <!-- PWA INSTALL BANNER -->
+  <div id="pwa-banner">
+    <span class="pwa-icon">🌹</span>
+    <div class="pwa-text">
+      <strong>Add to Home Screen</strong>
+      <span>Install Our Memories as an app</span>
+    </div>
+    <button class="pwa-install" onclick="pwaInstall()">Install</button>
+    <button class="pwa-dismiss" onclick="pwaDismiss()">✕</button>
+  </div>
 </div>
 
 <!-- LIGHTBOX -->
@@ -582,12 +607,17 @@ async function loadRemoteConfig(){
       localStorage.setItem('dbx_tok',cfg.token);
       localStorage.setItem('dbx_fol',cfg.folder);
     }
+    // Sync theme across devices — apply and save locally if present in config
+    if(cfg&&cfg.theme){
+      localStorage.setItem('lum_theme',cfg.theme);
+      applyTheme(cfg.theme!=='light');
+    }
   }catch(e){/* silent fallback */}
 }
 
 async function saveRemoteConfig(token,folder){
-  const cfg=JSON.stringify({token,folder});
-  const blob=new Blob([cfg],{type:'application/json'});
+  const theme=localStorage.getItem('lum_theme')||'dark';
+  const blob=new Blob([JSON.stringify({token,folder,theme})],{type:'application/json'});
   await fetch('https://content.dropboxapi.com/2/files/upload',{
     method:'POST',
     headers:{
@@ -597,7 +627,7 @@ async function saveRemoteConfig(token,folder){
     },
     body:blob
   });
-  _configCache={token,folder};
+  _configCache={token,folder,theme};
 }
 
 /* THEME */
@@ -611,7 +641,12 @@ function applyTheme(isDark){
   localStorage.setItem('lum_theme',isDark?'dark':'light');
 }
 function toggleTheme(isLight){
-  applyTheme(!isLight); // isLight=true means checkbox checked = switch to light
+  applyTheme(!isLight);
+  // Push updated theme to Dropbox so other devices pick it up on next login
+  const token=tok(),folder=fold();
+  if(token&&folder){
+    saveRemoteConfig(token,folder).catch(()=>{});// fire-and-forget, silent on failure
+  }
 }
 // Apply saved theme immediately on page load
 (()=>applyTheme(localStorage.getItem('lum_theme')!=='light'))();
@@ -620,7 +655,6 @@ function toggleTheme(isLight){
 function syncDesktop(){
   const mob=window.innerWidth<640;
   const show=(id,v)=>{const el=document.getElementById(id);if(el)el.style.display=v;};
-  show('desktop-theme',mob?'none':'flex'); // 'relative' was invalid — must be a display value
   show('btn-settings',mob?'none':'inline-flex');
   show('btn-logout',mob?'none':'inline-flex');
   show('btn-menu',mob?'flex':'none');
@@ -791,12 +825,12 @@ async function loadFiles(){
   }
 }
 /* BUILD CARD */
+
 function buildCard(e){
   const name=e.name||'Untitled',size=fmt(e.size||0),path=e.path_lower;
   const date=e.client_modified?new Date(e.client_modified).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
   const cat=getFileCat(name),isImg=cat==='image',playable=cat==='audio'||cat==='video';
   const emoji=getFileEmoji(name),ext=(name.split('.').pop()||'').toUpperCase().slice(0,6);
-  // Escape for safe HTML attribute use
   const esc=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const c=document.createElement('div');c.className='pc';
 
@@ -809,12 +843,10 @@ function buildCard(e){
 
   c.innerHTML=`${preview}<div class="pi"><div class="pn" title="${esc(name)}">${esc(name)}</div><div class="pm">${esc(date)}${size?' · '+size:''}</div></div><div class="pa"></div>`;
 
-  // Wire up events safely via JS (no inline onclick = no quote-escaping bugs)
   if(isImg){
     c.querySelector('.thumb').addEventListener('click',()=>lbOpen(path));
   } else if(playable){
     c.querySelector('.file-icon').addEventListener('click',()=>mpOpen(path,name,cat));
-  }
 
   const pa=c.querySelector('.pa');
   if(playable){
@@ -828,6 +860,8 @@ function buildCard(e){
 
   return c;
 }
+
+
 
 /* MEDIA PLAYER */
 let mpMediaEl=null,mpIsAudio=false;
@@ -950,6 +984,102 @@ async function delFile(path,btn){if(!confirm('Remove this memory?'))return;try{a
 function setView(v){document.getElementById('vg').classList.toggle('active',v==='grid');document.getElementById('vl').classList.toggle('active',v==='list');document.getElementById('grid').classList.toggle('list',v==='list');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){lbClose();closeSett();mpClose();closeMenu();}if(e.key===' '&&document.getElementById('mplayer').classList.contains('on')){e.preventDefault();mpTogglePlay();}});
 function fmt(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+
+/* PWA */
+(function initPWA(){
+  // Inject web app manifest as data URI — works from a single HTML file, no server needed
+  const manifest={
+    name:'Our Memories',
+    short_name:'Memories',
+    description:'A private collection of our memories',
+    start_url:location.href,
+    display:'standalone',
+    orientation:'portrait-primary',
+    background_color:'#1a0a0d',
+    theme_color:'#1a0a0d',
+    icons:[
+      {src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='115' fill='%231a0a0d'/%3E%3Ctext x='256' y='330' font-size='280' text-anchor='middle'%3E🌹%3C/text%3E%3C/svg%3E",
+       sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}
+    ]
+  };
+  const blob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'});
+  const link=document.createElement('link');
+  link.rel='manifest';link.href=URL.createObjectURL(blob);
+  document.head.appendChild(link);
+
+  // Register service worker via blob URL — caches the app shell for offline splash
+  if('serviceWorker' in navigator){
+    const swCode=`
+const CACHE='memories-v1';
+const SHELL=[self.location.href.replace(/\\/sw-[^/]+$/,'/')];
+self.addEventListener('install',e=>e.waitUntil(
+  caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())
+));
+self.addEventListener('activate',e=>e.waitUntil(
+  caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+    .then(()=>self.clients.claim())
+));
+self.addEventListener('fetch',e=>{
+  if(!e.request.url.startsWith('http'))return;
+  // Network-first for API calls, cache-first for app shell
+  if(e.request.url.includes('dropboxapi.com')||e.request.url.includes('dropbox.com')){
+    return; // never intercept Dropbox API calls
+  }
+  e.respondWith(
+    fetch(e.request).catch(()=>caches.match(e.request).then(r=>r||caches.match('/')))
+  );
+});`;
+    const swBlob=new Blob([swCode],{type:'application/javascript'});
+    const swUrl=URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swUrl,{scope:'./'}).catch(()=>{});
+  }
+
+  // Theme-color meta sync with dark/light mode
+  function syncThemeColor(){
+    const isDark=document.documentElement.getAttribute('data-theme')!=='light';
+    const meta=document.getElementById('theme-color-meta');
+    if(meta)meta.setAttribute('content',isDark?'#1a0a0d':'#fdf0f2');
+  }
+  new MutationObserver(syncThemeColor).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  syncThemeColor();
+
+  // Install prompt (Android/Chrome) — show our custom banner
+  let _deferredPrompt=null;
+  window.addEventListener('beforeinstallprompt',e=>{
+    e.preventDefault();
+    _deferredPrompt=e;
+    // Only show if not dismissed before and not already installed
+    if(!localStorage.getItem('pwa_dismissed')&&!window.matchMedia('(display-mode:standalone)').matches){
+      // Delay slightly so it doesn't pop up before the app loads
+      setTimeout(()=>document.getElementById('pwa-banner').classList.add('on'),3000);
+    }
+  });
+  window.pwaInstall=async function(){
+    if(!_deferredPrompt)return;
+    document.getElementById('pwa-banner').classList.remove('on');
+    _deferredPrompt.prompt();
+    const{outcome}=await _deferredPrompt.userChoice;
+    if(outcome==='accepted')toast('App installed ♡');
+    _deferredPrompt=null;
+  };
+  window.pwaDismiss=function(){
+    document.getElementById('pwa-banner').classList.remove('on');
+    localStorage.setItem('pwa_dismissed','1');
+  };
+
+  // iOS Safari: show a manual "Add to Home Screen" tip since iOS doesn't fire beforeinstallprompt
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone=window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone;
+  if(isIOS&&!isStandalone&&!localStorage.getItem('pwa_dismissed')){
+    setTimeout(()=>{
+      const b=document.getElementById('pwa-banner');
+      b.querySelector('.pwa-text span').textContent='Tap Share → Add to Home Screen';
+      b.querySelector('.pwa-install').textContent='Got it';
+      b.querySelector('.pwa-install').onclick=()=>pwaDismiss();
+      b.classList.add('on');
+    },3000);
+  }
+})();
 </script>
 </body>
 </html>
