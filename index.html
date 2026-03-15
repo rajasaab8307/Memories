@@ -489,28 +489,44 @@ async function loadSettingsFromDropbox() {
   try {
     const r = await fetch('https://content.dropboxapi.com/2/files/download', {
       method:'POST',
-      headers:{'Authorization':'Bearer '+tok(),'Dropbox-API-Arg':JSON.stringify({path:SETTINGS_FILE})}
+      headers:{
+        'Authorization':'Bearer '+tok(),
+        'Dropbox-API-Arg':JSON.stringify({path:SETTINGS_FILE})
+      }
     });
     if (r.ok) {
-      const s = await r.json();
+      // Dropbox download: the file content IS the raw response body
+      const text = await r.text();
+      const s = JSON.parse(text);
       if (s.token)  localStorage.setItem('mem_tok', s.token);
       if (s.folder) localStorage.setItem('mem_fol', s.folder);
+      console.log('Settings loaded from Dropbox');
     }
-  } catch(e) { /* first run — no settings file yet */ }
+    // 409 = file not found on first run, ignored silently
+  } catch(e) { console.log('Settings load skipped:', e.message); }
 }
 
 async function saveSettingsToDropbox(token, folder) {
-  const body = JSON.stringify({token, folder});
+  // Upload endpoint requires raw bytes + application/octet-stream
+  const fileContent = JSON.stringify({token, folder});
   const r = await fetch('https://content.dropboxapi.com/2/files/upload', {
     method:'POST',
     headers:{
       'Authorization':'Bearer '+token,
-      'Dropbox-API-Arg':JSON.stringify({path:SETTINGS_FILE,mode:'overwrite',mute:true}),
-      'Content-Type':'application/json'
+      'Dropbox-API-Arg':JSON.stringify({
+        path:SETTINGS_FILE,
+        mode:'overwrite',
+        autorename:false,
+        mute:true
+      }),
+      'Content-Type':'application/octet-stream'
     },
-    body
+    body: fileContent
   });
-  if (!r.ok) throw new Error('Could not save settings to Dropbox');
+  if (!r.ok) {
+    const err = await r.text().catch(()=>'');
+    throw new Error('Save failed: '+(err||r.status));
+  }
 }
 
 /* ── THEME ── */
@@ -638,13 +654,15 @@ async function saveSett(){
   btn.disabled=true;btn.textContent='Saving…';
   try{
     // Validate token first
+    sm('Validating token…');
     const test=await fetch('https://api.dropboxapi.com/2/users/get_current_account',{method:'POST',headers:{'Authorization':'Bearer '+nt}});
-    if(!test.ok)throw new Error('Invalid Dropbox token');
-    // Save to Dropbox so other devices pick it up
-    await saveSettingsToDropbox(nt,nf);
-    // Update local
+    if(!test.ok)throw new Error('Invalid Dropbox token — check and paste it again.');
+    // Save locally immediately (so app works even if Dropbox write fails)
     localStorage.setItem('mem_tok',nt);
     localStorage.setItem('mem_fol',nf);
+    // Save to Dropbox so other devices pick it up
+    sm('Syncing to Dropbox…');
+    await saveSettingsToDropbox(nt,nf);
     sm('Saved & synced to all devices ♡',true);
     toast('Settings synced ♡');
     setTimeout(()=>{closeSett();loadFiles();loadStorage();},1200);
