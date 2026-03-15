@@ -557,19 +557,24 @@ let _configCache=null; // in-memory cache for this session
 const tok=()=>_configCache?.token||localStorage.getItem('dbx_tok')||DEFAULT_TOKEN;
 const fold=()=>(_configCache?.folder||localStorage.getItem('dbx_fol')||DEFAULT_FOLDER).replace(/\/+$/,'');
 
+// Encode any JSON object into an ASCII-safe Dropbox-API-Arg header value.
+// HTTP headers must be ISO-8859-1 — unicode filenames, emojis, Hindi/Arabic/CJK chars
+// all cause "non ISO-8859-1 code point" errors. Escape all non-ASCII as \uXXXX.
+function dbxArg(obj){
+  return JSON.stringify(obj).replace(/[^\x00-\x7F]/g,c=>'\\u'+c.codePointAt(0).toString(16).padStart(4,'0'));
+}
+
 async function loadRemoteConfig(){
-  // Use current best token to bootstrap (localStorage cache first, then hardcoded default)
   const bootstrapToken=localStorage.getItem('dbx_tok')||DEFAULT_TOKEN;
   try{
     const r=await fetch('https://content.dropboxapi.com/2/files/download',{
       method:'POST',
       headers:{
         'Authorization':'Bearer '+bootstrapToken,
-        'Dropbox-API-Arg':JSON.stringify({path:CONFIG_PATH})
+        'Dropbox-API-Arg':dbxArg({path:CONFIG_PATH})
       }
     });
-    if(!r.ok)return; // config file doesn't exist yet — first run, use defaults
-    // Dropbox /download returns the raw file body, NOT a JSON envelope — use text() then parse
+    if(!r.ok)return;
     const text=await r.text();
     const cfg=JSON.parse(text);
     if(cfg&&cfg.token&&cfg.folder){
@@ -577,7 +582,7 @@ async function loadRemoteConfig(){
       localStorage.setItem('dbx_tok',cfg.token);
       localStorage.setItem('dbx_fol',cfg.folder);
     }
-  }catch(e){/* silent — fall back to localStorage/defaults */}
+  }catch(e){/* silent fallback */}
 }
 
 async function saveRemoteConfig(token,folder){
@@ -587,7 +592,7 @@ async function saveRemoteConfig(token,folder){
     method:'POST',
     headers:{
       'Authorization':'Bearer '+token,
-      'Dropbox-API-Arg':JSON.stringify({path:CONFIG_PATH,mode:'overwrite',mute:true}),
+      'Dropbox-API-Arg':dbxArg({path:CONFIG_PATH,mode:'overwrite',mute:true}),
       'Content-Type':'application/octet-stream'
     },
     body:blob
@@ -716,9 +721,20 @@ function renderFiles(){
 }
 
 /* DROPBOX */
-async function dbxRPC(e,b){const r=await fetch('https://api.dropboxapi.com/2/'+e,{method:'POST',headers:{'Authorization':'Bearer '+tok(),'Content-Type':'application/json'},body:b===null?'null':JSON.stringify(b)});const t=await r.text();let j;try{j=JSON.parse(t);}catch{j={error_summary:t};}if(!r.ok)throw new Error(j.error_summary||`HTTP ${r.status}`);return j;}
-async function dbxUpload(path,file){const r=await fetch('https://content.dropboxapi.com/2/files/upload',{method:'POST',headers:{'Authorization':'Bearer '+tok(),'Dropbox-API-Arg':JSON.stringify({path,mode:'add',autorename:true,mute:true}),'Content-Type':'application/octet-stream'},body:file});const t=await r.text();let j;try{j=JSON.parse(t);}catch{j={};}if(!r.ok)throw new Error(j.error_summary||`HTTP ${r.status}`);return j;}
-async function dbxThumb(p){const r=await fetch('https://content.dropboxapi.com/2/files/get_thumbnail_v2',{method:'POST',headers:{'Authorization':'Bearer '+tok(),'Dropbox-API-Arg':JSON.stringify({resource:{'.tag':'path',path:p},format:{'.tag':'jpeg'},size:{'.tag':'w480h320'},mode:{'.tag':'fitone_bestfit'}})}});if(!r.ok)throw new Error('thumb');return URL.createObjectURL(await r.blob());}
+async function dbxRPC(e,b){
+  const r=await fetch('https://api.dropboxapi.com/2/'+e,{method:'POST',headers:{'Authorization':'Bearer '+tok(),'Content-Type':'application/json'},body:b===null?'null':JSON.stringify(b)});
+  const t=await r.text();let j;try{j=JSON.parse(t);}catch{j={error_summary:t};}
+  if(!r.ok)throw new Error(j.error_summary||`HTTP ${r.status}`);return j;
+}
+async function dbxUpload(path,file){
+  const r=await fetch('https://content.dropboxapi.com/2/files/upload',{method:'POST',headers:{'Authorization':'Bearer '+tok(),'Dropbox-API-Arg':dbxArg({path,mode:'add',autorename:true,mute:true}),'Content-Type':'application/octet-stream'},body:file});
+  const t=await r.text();let j;try{j=JSON.parse(t);}catch{j={};}
+  if(!r.ok)throw new Error(j.error_summary||`HTTP ${r.status}`);return j;
+}
+async function dbxThumb(p){
+  const r=await fetch('https://content.dropboxapi.com/2/files/get_thumbnail_v2',{method:'POST',headers:{'Authorization':'Bearer '+tok(),'Dropbox-API-Arg':dbxArg({resource:{'.tag':'path',path:p},format:{'.tag':'jpeg'},size:{'.tag':'w480h320'},mode:{'.tag':'fitone_bestfit'}})}});
+  if(!r.ok)throw new Error('thumb');return URL.createObjectURL(await r.blob());
+}
 async function dbxTempLink(p){const d=await dbxRPC('files/get_temporary_link',{path:p});return d.link;}
 
 /* STORAGE */
