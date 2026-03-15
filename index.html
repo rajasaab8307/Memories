@@ -596,21 +596,36 @@ async function saveRemoteConfig(token,folder){
 }
 
 /* THEME */
-function applyTheme(isDark){document.documentElement.setAttribute('data-theme',isDark?'dark':'light');['theme-chk','theme-chk-m'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=!isDark;});localStorage.setItem('lum_theme',isDark?'dark':'light');}
-function toggleTheme(isLight){applyTheme(!isLight);['theme-chk','theme-chk-m'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=isLight;});}
+function applyTheme(isDark){
+  document.documentElement.setAttribute('data-theme',isDark?'dark':'light');
+  // checked = light mode (sun), unchecked = dark mode (moon)
+  ['theme-chk','theme-chk-m'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.checked=!isDark;
+  });
+  localStorage.setItem('lum_theme',isDark?'dark':'light');
+}
+function toggleTheme(isLight){
+  applyTheme(!isLight); // isLight=true means checkbox checked = switch to light
+}
+// Apply saved theme immediately on page load
 (()=>applyTheme(localStorage.getItem('lum_theme')!=='light'))();
 
 /* DESKTOP SYNC */
 function syncDesktop(){
   const mob=window.innerWidth<640;
   const show=(id,v)=>{const el=document.getElementById(id);if(el)el.style.display=v;};
-  show('desktop-theme',mob?'none':'relative');
+  show('desktop-theme',mob?'none':'flex'); // 'relative' was invalid — must be a display value
   show('btn-settings',mob?'none':'inline-flex');
   show('btn-logout',mob?'none':'inline-flex');
   show('btn-menu',mob?'flex':'none');
 }
 window.addEventListener('resize',syncDesktop);
-document.addEventListener('DOMContentLoaded',syncDesktop);
+document.addEventListener('DOMContentLoaded',()=>{
+  syncDesktop();
+  // Re-apply theme to sync checkbox states now that DOM exists
+  applyTheme(localStorage.getItem('lum_theme')!=='light');
+});
 
 /* TOAST */
 function toast(msg,t='s'){const el=document.getElementById('toast');el.textContent=msg;el.className='show '+t;clearTimeout(el._t);el._t=setTimeout(()=>el.className='',3500);}
